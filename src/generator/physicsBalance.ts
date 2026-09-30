@@ -314,9 +314,9 @@ export class PhysicsBalanceEngine {
       const footName = `Left ${isForelimb ? 'Fore' : 'Hind'} Foot`;
 
       // Anatomical foot support patch (radiating digits forward, plantar pad, heel/hock backward)
-      const padSide = fJ.radius * 1.25;
-      const padFront = fJ.radius * (isBiped ? 2.2 : 1.6);
-      const padBack = fJ.radius * (isBiped ? 1.1 : 0.9);
+      const padSide = fJ.radius * (isBiped ? 1.40 : 1.25);
+      const padFront = fJ.radius * (isBiped ? 2.5 : 1.6);
+      const padBack = fJ.radius * (isBiped ? 1.3 : 0.9);
 
       polygonPoints.push([fJ.pos[0] + padSide, fJ.pos[2] + padFront]);
       polygonPoints.push([fJ.pos[0] - padSide, fJ.pos[2] + padFront]);
@@ -340,9 +340,9 @@ export class PhysicsBalanceEngine {
       const isForelimb = p === 0 && skeleton.rightLegIndices.length > 1;
       const footName = `Right ${isForelimb ? 'Fore' : 'Hind'} Foot`;
 
-      const padSide = fJ.radius * 1.25;
-      const padFront = fJ.radius * (isBiped ? 2.2 : 1.6);
-      const padBack = fJ.radius * (isBiped ? 1.1 : 0.9);
+      const padSide = fJ.radius * (isBiped ? 1.40 : 1.25);
+      const padFront = fJ.radius * (isBiped ? 2.5 : 1.6);
+      const padBack = fJ.radius * (isBiped ? 1.3 : 0.9);
 
       polygonPoints.push([fJ.pos[0] + padSide, fJ.pos[2] + padFront]);
       polygonPoints.push([fJ.pos[0] - padSide, fJ.pos[2] + padFront]);
@@ -485,7 +485,7 @@ export class PhysicsBalanceEngine {
       modified.scapulaVolume = Math.min(0.42, modified.scapulaVolume * 1.16);
 
       // 2. Adjust Stance Base Width to enlarge Base of Support (BoS)
-      modified.pelvisWidth = THREE.MathUtils.clamp(modified.pelvisWidth * 1.12, 0.54, 0.88);
+      modified.pelvisWidth = THREE.MathUtils.clamp(modified.pelvisWidth * 1.12, isBiped ? 0.62 : 0.54, 0.88);
       modified.thoracicWidth = THREE.MathUtils.clamp(modified.thoracicWidth * 1.10, 0.56, 0.88);
 
       // 3. Counterbalance Cranial Overhang via Caudal Cantilever
@@ -495,8 +495,8 @@ export class PhysicsBalanceEngine {
       if (zError > 0 || current.stabilityStatus === 'unstable') {
         // Front-heavy: elongate and thicken tail to act as a physical cantilever counterweight
         const counterweightBoost = 1.18 + Math.min(0.5, Math.abs(zError) * 0.9);
-        modified.tailLength = THREE.MathUtils.clamp(modified.tailLength * counterweightBoost, isBiped ? 1.8 : 1.2, 2.8);
-        modified.tailThickness = THREE.MathUtils.clamp(modified.tailThickness * 1.20, 0.18, 0.38);
+        modified.tailLength = THREE.MathUtils.clamp(modified.tailLength * counterweightBoost, isBiped ? 2.0 : 1.2, 2.9);
+        modified.tailThickness = THREE.MathUtils.clamp(modified.tailThickness * 1.20, isBiped ? 0.22 : 0.18, 0.38);
         // Arch spine to draw ribcage and head back over hip axis
         modified.spineCurvature = THREE.MathUtils.clamp(modified.spineCurvature + 0.06, 0.12, 0.38);
       } else if (zError < -0.10) {

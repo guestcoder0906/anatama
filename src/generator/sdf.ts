@@ -261,6 +261,58 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
     prevTailIdx = tIdx;
   }
 
+  // 1. Calculate Whole Axial Body Center of Mass Z position (to dynamically position biped feet under the CoM)
+  let axialMassSum = 0;
+  let axialMassZSum = 0;
+
+  // Pelvis
+  const pelvisM = Math.pow(pelvisRx, 3) * 1.0;
+  axialMassSum += pelvisM;
+  axialMassZSum += pelvisM * pelvisZ;
+
+  // Lumbar
+  const lumbarM = Math.pow(lumbarRx, 3) * 0.9;
+  axialMassSum += lumbarM;
+  axialMassZSum += lumbarM * lumbarZ;
+
+  // Thorax
+  const thoraxM = Math.pow(thoraxRx, 3) * 1.1;
+  axialMassSum += thoraxM;
+  axialMassZSum += thoraxM * thoraxZ;
+
+  // Neck
+  const neckBase = joints[3];
+  const neckUpper = joints[4];
+  const neckM = Math.pow((neckBase.radius + neckUpper.radius) * 0.5, 3) * 1.4;
+  axialMassSum += neckM;
+  axialMassZSum += neckM * ((neckBase.pos[2] + neckUpper.pos[2]) * 0.5);
+
+  // Cranium, Snout & Jaw
+  const headJ = joints[5];
+  const snoutJ = joints[6];
+  const jawJ = joints[7];
+  const headM = Math.pow(headJ.radius, 3) * 1.6;
+  axialMassSum += headM;
+  axialMassZSum += headM * headJ.pos[2];
+
+  const snoutM = Math.pow(snoutJ.radius, 3) * 1.0;
+  axialMassSum += snoutM;
+  axialMassZSum += snoutM * snoutJ.pos[2];
+
+  const jawM = Math.pow(jawJ.radius, 3) * 0.8;
+  axialMassSum += jawM;
+  axialMassZSum += jawM * jawJ.pos[2];
+
+  // Tail segments
+  for (const tIdx of tailIndices) {
+    const tJ = joints[tIdx];
+    const tM = Math.pow(tJ.radius, 3) * 1.2;
+    axialMassSum += tM;
+    axialMassZSum += tM * tJ.pos[2];
+  }
+
+  const axialCoMZ = axialMassSum > 0 ? axialMassZSum / axialMassSum : 0;
+
   // Limb Pairs Generation
   const limbPairsCount = dna.limbPairs;
 
@@ -313,9 +365,11 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
         footForwardOffset = (dna.footPosture === 'plantigrade' ? 0.10 : 0.06) * scale;
       }
     } else if (isBipedStance) {
-      // Bipedal theropod: feet planted stably under the Whole-Body Center of Mass (CoM)
-      kneeZOffset = (0.24 * limbScale + spineL * 0.14) * scale;
-      footForwardOffset = (0.22 + spineL * 0.14) * scale;
+      // Dynamic biological balance: biped feet are planted directly under the whole-body Center of Mass (CoM)
+      // The knee extends forward and ankle angles backward to reach the ground contact point
+      kneeZOffset = (axialCoMZ - attachJoint.pos[2]) * 0.65 + 0.14 * limbScale * scale;
+      const targetAnkleZ = attachJoint.pos[2] + kneeZOffset - 0.14 * limbScale * scale;
+      footForwardOffset = Math.max(0.12 * scale, axialCoMZ - targetAnkleZ);
     } else {
       // Quadruped: Forelimb elbow angles back, hindlimb stifle angles forward
       if (isForelimb) {
@@ -799,30 +853,105 @@ export class CreatureSDF {
       const rDistal = smin(rLower, rFoot, k * 0.30);
       const rLeg = smin(rUpper, rDistal, k * 0.32);
 
-      // Proximal socket root bridge: connects limb socket organically into pelvic or thoracic girdle
+      // Proximal anatomical muscular junction: connects limb socket organically into pelvic or thoracic girdle
+      // eliminating abrupt, jarring cylinder intersections via contoured scapular/gluteal musculature and flank webs
       const lRoot = sdTaperedCapsule(
         x, y, z,
         attachJoint.pos[0], attachJoint.pos[1], attachJoint.pos[2],
         lgJ.pos[0], lgJ.pos[1], lgJ.pos[2],
-        attachJoint.radius * 0.75,
-        lgJ.radius
+        attachJoint.radius * 0.82,
+        lgJ.radius * 1.05
       );
       const rRoot = sdTaperedCapsule(
         x, y, z,
         attachJoint.pos[0], attachJoint.pos[1], attachJoint.pos[2],
         rgJ.pos[0], rgJ.pos[1], rgJ.pos[2],
-        attachJoint.radius * 0.75,
-        rgJ.radius
+        attachJoint.radius * 0.82,
+        rgJ.radius * 1.05
       );
 
-      const dLeftLimb = smin(lRoot, lLeg, k * 0.34);
-      const dRightLimb = smin(rRoot, rLeg, k * 0.34);
+      let lMass: number;
+      let rMass: number;
+
+      if (isForelimb) {
+        // Forelimb: Scapular blade + pectoral / axillary fold bridging ribs to upper arm
+        const lBlade = sdEllipsoid(
+          x, y, z,
+          lgJ.pos[0] * 0.82, attachJoint.pos[1] + attachJoint.radius * 0.10, attachJoint.pos[2] - attachJoint.radius * 0.08,
+          lgJ.radius * 1.30, attachJoint.radius * 0.72, attachJoint.radius * 0.85
+        );
+        const lPect = sdTaperedCapsule(
+          x, y, z,
+          lgJ.pos[0] * 0.45, attachJoint.pos[1] - attachJoint.radius * 0.38, attachJoint.pos[2] + 0.04 * scale,
+          lgJ.pos[0], lgJ.pos[1] - lgJ.radius * 0.25, lgJ.pos[2],
+          attachJoint.radius * 0.45, lgJ.radius * 0.75
+        );
+        lMass = smin(lBlade, lPect, k * 0.40);
+
+        const rBlade = sdEllipsoid(
+          x, y, z,
+          rgJ.pos[0] * 0.82, attachJoint.pos[1] + attachJoint.radius * 0.10, attachJoint.pos[2] - attachJoint.radius * 0.08,
+          rgJ.radius * 1.30, attachJoint.radius * 0.72, attachJoint.radius * 0.85
+        );
+        const rPect = sdTaperedCapsule(
+          x, y, z,
+          rgJ.pos[0] * 0.45, attachJoint.pos[1] - attachJoint.radius * 0.38, attachJoint.pos[2] + 0.04 * scale,
+          rgJ.pos[0], rgJ.pos[1] - rgJ.radius * 0.25, rgJ.pos[2],
+          attachJoint.radius * 0.45, rgJ.radius * 0.75
+        );
+        rMass = smin(rBlade, rPect, k * 0.40);
+      } else if (leftChains.length === 3 && p === 1) {
+        // Hexapod middle limb: lateral thoracic pleurite bulb
+        lMass = sdEllipsoid(
+          x, y, z,
+          lgJ.pos[0] * 0.85, attachJoint.pos[1], attachJoint.pos[2],
+          lgJ.radius * 1.25, attachJoint.radius * 0.68, attachJoint.radius * 0.75
+        );
+        rMass = sdEllipsoid(
+          x, y, z,
+          rgJ.pos[0] * 0.85, attachJoint.pos[1], attachJoint.pos[2],
+          rgJ.radius * 1.25, attachJoint.radius * 0.68, attachJoint.radius * 0.75
+        );
+      } else {
+        // Hindlimb / Biped: Gluteal iliac flank mass + inguinal flank fold bridging thigh into abdominal wall
+        const lGlute = sdEllipsoid(
+          x, y, z,
+          lgJ.pos[0] * 0.85, attachJoint.pos[1] + attachJoint.radius * 0.06, attachJoint.pos[2] + attachJoint.radius * 0.08,
+          lgJ.radius * 1.35, attachJoint.radius * 0.78, attachJoint.radius * 0.90
+        );
+        const lFlank = sdTaperedCapsule(
+          x, y, z,
+          lgJ.pos[0] * 0.60, attachJoint.pos[1] - attachJoint.radius * 0.32, attachJoint.pos[2] + attachJoint.radius * 0.28,
+          lkJ.pos[0] * 0.82, lkJ.pos[1] * 0.70 + lgJ.pos[1] * 0.30, lkJ.pos[2] * 0.55 + lgJ.pos[2] * 0.45,
+          attachJoint.radius * 0.48, lgJ.radius * 0.72
+        );
+        lMass = smin(lGlute, lFlank, k * 0.42);
+
+        const rGlute = sdEllipsoid(
+          x, y, z,
+          rgJ.pos[0] * 0.85, attachJoint.pos[1] + attachJoint.radius * 0.06, attachJoint.pos[2] + attachJoint.radius * 0.08,
+          rgJ.radius * 1.35, attachJoint.radius * 0.78, attachJoint.radius * 0.90
+        );
+        const rFlank = sdTaperedCapsule(
+          x, y, z,
+          rgJ.pos[0] * 0.60, attachJoint.pos[1] - attachJoint.radius * 0.32, attachJoint.pos[2] + attachJoint.radius * 0.28,
+          rkJ.pos[0] * 0.82, rkJ.pos[1] * 0.70 + rgJ.pos[1] * 0.30, rkJ.pos[2] * 0.55 + rgJ.pos[2] * 0.45,
+          attachJoint.radius * 0.48, rgJ.radius * 0.72
+        );
+        rMass = smin(rGlute, rFlank, k * 0.42);
+      }
+
+      const lSocket = smin(lRoot, lMass, k * 0.48);
+      const rSocket = smin(rRoot, rMass, k * 0.48);
+
+      const dLeftLimb = smin(lSocket, lLeg, k * 0.46);
+      const dRightLimb = smin(rSocket, rLeg, k * 0.46);
 
       // Bilateral isolation across midline prevents left & right legs from melting together
       const pairLimbs = Math.min(dLeftLimb, dRightLimb);
 
-      // Organic socket attachment into trunk
-      dTrunkWithSockets = smin(dTrunkWithSockets, pairLimbs, k * 0.28);
+      // Organic, smooth, continuous muscular socket attachment into trunk
+      dTrunkWithSockets = smin(dTrunkWithSockets, pairLimbs, k * 0.68);
     }
 
     return dTrunkWithSockets;

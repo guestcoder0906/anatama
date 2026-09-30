@@ -197,6 +197,8 @@ export function generateRandomDNA(seed: number = Math.floor(Math.random() * 1000
   ];
   const ecologicalNiche = rng.pick(niches);
 
+  const isBiped = stance === 'avian_theropod' || stance === 'bipedal';
+
   return {
     seed,
     scientificName,
@@ -205,7 +207,7 @@ export function generateRandomDNA(seed: number = Math.floor(Math.random() * 1000
     ecologicalNiche,
 
     stance,
-    postureErectness: stance === 'avian_theropod' ? 0.9 : rng.range(0.3, 0.95),
+    postureErectness: isBiped ? 0.9 : rng.range(0.3, 0.95),
     scale: rng.range(1.0, 1.4),
 
     spineLength: rng.range(1.6, 2.8),
@@ -214,12 +216,12 @@ export function generateRandomDNA(seed: number = Math.floor(Math.random() * 1000
     thoracicWidth: rng.range(0.58, 0.74),
     thoracicDepth: rng.range(0.56, 0.72),
     lumbarLength: rng.range(0.48, 0.95),
-    pelvisWidth: rng.range(0.54, 0.72),
-    tailLength: stance === 'avian_theropod' ? rng.range(1.9, 2.7) : rng.range(0.9, 2.2),
-    tailThickness: stance === 'avian_theropod' ? rng.range(0.20, 0.32) : rng.range(0.14, 0.28),
+    pelvisWidth: isBiped ? rng.range(0.60, 0.78) : rng.range(0.54, 0.72),
+    tailLength: isBiped ? rng.range(2.0, 2.7) : rng.range(0.9, 2.2),
+    tailThickness: isBiped ? rng.range(0.22, 0.32) : rng.range(0.14, 0.28),
     tailTipStyle,
 
-    neckLength: stance === 'avian_theropod' ? rng.range(0.5, 1.0) : rng.range(0.3, 0.85),
+    neckLength: isBiped ? rng.range(0.5, 0.95) : rng.range(0.3, 0.85),
     neckArch: rng.range(0.15, 0.65),
     neckThickness: rng.range(0.24, 0.50),
     skullArchetype,
@@ -238,8 +240,8 @@ export function generateRandomDNA(seed: number = Math.floor(Math.random() * 1000
 
     footPosture,
     limbPairs,
-    forelimbScale: stance === 'avian_theropod' ? rng.range(0.35, 0.55) : rng.range(0.88, 1.15),
-    hindlimbScale: rng.range(0.88, 1.22),
+    forelimbScale: isBiped ? rng.range(0.35, 0.55) : rng.range(0.88, 1.15),
+    hindlimbScale: isBiped ? rng.range(0.95, 1.25) : rng.range(0.88, 1.22),
     scapulaVolume: rng.range(0.22, 0.48),
     femurThickness: rng.range(0.16, 0.34),
     extremityType,
