@@ -1,0 +1,6 @@
+{
+  "name": "Anatoma3D - Procedural Creature Studio",
+  "description": "Advanced 3D procedural animal generator powered by marching cubes continuous mesh synthesis, procedural rigging, deep learning muscle deformation prediction, and Unity game engine export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
