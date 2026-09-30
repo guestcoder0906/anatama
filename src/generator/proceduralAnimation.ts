@@ -83,34 +83,34 @@ export class ProceduralAnimationEngine {
         jawGape = Math.max(0, Math.sin(t * 1.5)) * 0.08;
         break;
       case 'walk':
-        gaitFreq = 3.0;
-        spineFlex = 0.10;
-        legSwing = 0.36;
-        footLift = 0.22;
-        rootHeave = 0.035;
+        gaitFreq = isBiped ? 2.6 : 3.0;
+        spineFlex = isBiped ? 0.06 : 0.10;
+        legSwing = isBiped ? 0.22 : 0.36;
+        footLift = isBiped ? 0.15 : 0.22;
+        rootHeave = isBiped ? 0.025 : 0.035;
         jawGape = Math.max(0, Math.sin(t * 2.4)) * 0.09;
         break;
       case 'trot':
-        gaitFreq = 4.4;
-        spineFlex = 0.18;
-        legSwing = 0.48;
-        footLift = 0.30;
-        rootHeave = 0.06;
+        gaitFreq = isBiped ? 3.8 : 4.4;
+        spineFlex = isBiped ? 0.10 : 0.18;
+        legSwing = isBiped ? 0.28 : 0.48;
+        footLift = isBiped ? 0.20 : 0.30;
+        rootHeave = isBiped ? 0.04 : 0.06;
         jawGape = Math.max(0, Math.sin(t * 3.6)) * 0.14;
         break;
       case 'gallop':
-        gaitFreq = 5.2;
-        spineFlex = 0.32;
-        legSwing = 0.58;
-        footLift = 0.38;
-        rootHeave = 0.09;
+        gaitFreq = isBiped ? 4.4 : 5.2;
+        spineFlex = isBiped ? 0.18 : 0.32;
+        legSwing = isBiped ? 0.35 : 0.58;
+        footLift = isBiped ? 0.25 : 0.38;
+        rootHeave = isBiped ? 0.06 : 0.09;
         jawGape = Math.max(0, Math.sin(t * 4.8)) * 0.22 + 0.05;
         break;
       case 'prowl':
         gaitFreq = 1.8;
-        spineFlex = 0.07;
-        legSwing = 0.32;
-        footLift = 0.18;
+        spineFlex = isBiped ? 0.05 : 0.07;
+        legSwing = isBiped ? 0.18 : 0.32;
+        footLift = isBiped ? 0.12 : 0.18;
         rootHeave = 0.025;
         headPitch = -0.15; // crouched stealth
         jawGape = Math.max(0, Math.sin(t * 2.8)) * 0.12 + 0.03;
@@ -135,17 +135,28 @@ export class ProceduralAnimationEngine {
       if (gait === 'idle' || gait === 'roar') {
         root.position.copy(rig.boneWorldPositions[0]);
         root.rotation.set(0, 0, 0);
-      } else {
-        // Natural pelvic yaw rotates forward with the swinging hind leg
-        const pelvicYaw = Math.sin(phase) * (spineFlex * 0.40);
-        // Subtle pelvic roll dips slightly toward the swinging leg
-        const pelvicRoll = Math.sin(phase) * (spineFlex * 0.25);
-        // Pelvic pitch undulation with stride
-        const pelvicPitch = Math.cos(phase * 2.0) * (spineFlex * 0.20);
-        root.rotation.set(pelvicPitch, pelvicYaw, pelvicRoll);
+      } else if (isBiped) {
+        // Bipedal weight-transfer: lateral sway over the supporting stance foot
+        const swayX = Math.sin(phase) * 0.038 * dna.scale;
+        const pelvicRoll = Math.sin(phase) * 0.045; // slight roll toward swing side
+        const pelvicYaw = Math.sin(phase) * 0.07;   // pelvis rotates forward with swing leg
+        const pelvicPitch = Math.cos(phase * 2.0) * 0.025; // rhythmic stride pitch
+        const bipedHeave = (1.0 - Math.cos(phase * 2.0)) * 0.5 * rootHeave;
 
-        // Ground-level vertical heave
+        root.rotation.set(pelvicPitch, pelvicYaw, pelvicRoll);
+        root.position.set(
+          rig.boneWorldPositions[0].x + swayX,
+          rig.boneWorldPositions[0].y + bipedHeave,
+          rig.boneWorldPositions[0].z
+        );
+      } else {
+        // Quadruped / Hexapod pelvic undulation
+        const pelvicYaw = Math.sin(phase) * (spineFlex * 0.40);
+        const pelvicRoll = Math.sin(phase) * (spineFlex * 0.25);
+        const pelvicPitch = Math.cos(phase * 2.0) * (spineFlex * 0.20);
         const heaveY = Math.sin(phase * 2.0) * rootHeave;
+
+        root.rotation.set(pelvicPitch, pelvicYaw, pelvicRoll);
         root.position.set(
           rig.boneWorldPositions[0].x,
           rig.boneWorldPositions[0].y + Math.max(-0.015, heaveY),
@@ -157,14 +168,24 @@ export class ProceduralAnimationEngine {
     // 2. Spine & Ribcage flex
     const lumbar = boneMap.get('Spine_Lumbar');
     if (lumbar) {
-      lumbar.rotation.y = -Math.sin(phase) * (spineFlex * 0.85);
-      lumbar.rotation.x = Math.cos(phase * 2.0) * (spineFlex * 0.45);
+      if (isBiped) {
+        lumbar.rotation.y = -Math.sin(phase) * 0.05;
+        lumbar.rotation.x = Math.cos(phase * 2.0) * 0.03;
+      } else {
+        lumbar.rotation.y = -Math.sin(phase) * (spineFlex * 0.85);
+        lumbar.rotation.x = Math.cos(phase * 2.0) * (spineFlex * 0.45);
+      }
     }
 
     const thorax = boneMap.get('Spine_Thorax');
     if (thorax) {
-      thorax.rotation.y = Math.sin(phase) * (spineFlex * 0.60);
-      thorax.rotation.x = Math.sin(phase * 2.0) * (spineFlex * 0.25);
+      if (isBiped) {
+        thorax.rotation.y = Math.sin(phase) * 0.04;
+        thorax.rotation.x = Math.sin(phase * 2.0) * 0.02;
+      } else {
+        thorax.rotation.y = Math.sin(phase) * (spineFlex * 0.60);
+        thorax.rotation.x = Math.sin(phase * 2.0) * (spineFlex * 0.25);
+      }
     }
 
     // 3. Neck & Cranium (Dynamic biological awareness & look-around)
@@ -193,9 +214,14 @@ export class ProceduralAnimationEngine {
     for (let i = 1; i <= 4; i++) {
       const tailSeg = boneMap.get(`Tail_Segment_${i}`);
       if (tailSeg) {
-        const tailLag = i * 0.45;
-        tailSeg.rotation.y = Math.sin(phase - tailLag) * (0.18 + i * 0.08);
-        tailSeg.rotation.x = Math.cos(phase * 2.0 - tailLag) * (0.08 + i * 0.04);
+        const tailLag = i * 0.40;
+        if (isBiped) {
+          tailSeg.rotation.y = -Math.sin(phase - tailLag) * (0.12 + i * 0.05);
+          tailSeg.rotation.x = Math.cos(phase * 2.0 - tailLag) * (0.04 + i * 0.02);
+        } else {
+          tailSeg.rotation.y = -Math.sin(phase - tailLag) * (0.20 + i * 0.08);
+          tailSeg.rotation.x = Math.cos(phase * 2.0 - tailLag) * (0.08 + i * 0.04);
+        }
       }
     }
 
@@ -209,11 +235,16 @@ export class ProceduralAnimationEngine {
     else if (gait === 'prowl') stanceDuty = 0.72;
     else if (gait === 'trot') stanceDuty = 0.52;
     else if (gait === 'gallop') stanceDuty = 0.42;
-    if (isBiped && (gait === 'walk' || gait === 'prowl')) stanceDuty = 0.58;
+    if (isBiped && (gait === 'walk' || gait === 'prowl')) stanceDuty = 0.60;
 
-    const evaluateLimbKinematics = (phaseVal: number, isForelimb: boolean, isMiddleLimb: boolean = false) => {
+    type LimbRole = 'fore' | 'mid' | 'hind' | 'hexapod_hind' | 'biped';
+
+    const evaluateLimbKinematics = (phaseVal: number, role: LimbRole) => {
       if (stanceDuty >= 0.999) {
-        // Idle / Roar: 100% grounded stance carrying weight, no midair swinging
+        // Idle / Roar: 100% grounded stance carrying weight
+        if (role === 'biped') {
+          return { girdle: 0.0, knee: -0.38, ankle: 0.20, isStance: true };
+        }
         return { girdle: 0.0, knee: 0.0, ankle: 0.0, isStance: true };
       }
 
@@ -221,63 +252,80 @@ export class ProceduralAnimationEngine {
       const tau = ((phaseVal / (Math.PI * 2.0)) % 1.0 + 1.0) % 1.0;
 
       if (tau < stanceDuty) {
+        // ==========================================
         // STANCE PHASE: Planted on the ground bearing the creature's weight.
-        // Leg retracts under the body from FORWARD (+Z, girdle < 0) to BACKWARD (-Z, girdle > 0).
+        // ==========================================
         const s = tau / stanceDuty; // [0, 1)
         const girdle = -legSwing * Math.cos(Math.PI * s);
-
-        // GROUND CONTACT COMPLIANCE IK:
         const groundFlex = Math.sin(Math.PI * s) * ((1.0 - Math.cos(legSwing)) * 1.8 + 0.04);
 
         let knee = 0;
         let ankle = 0;
 
-        if (isForelimb) {
-          // Forelimb Elbow: bends forward (+rotation) to absorb weight smoothly without hyperextending backward
-          knee = THREE.MathUtils.clamp(groundFlex * 0.45, 0.0, 0.35);
-          // Wrist: counters shoulder & elbow to keep the front paw/hoof flat on the ground plane
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.50), -0.45, 0.45);
-        } else if (isMiddleLimb) {
+        if (role === 'biped') {
+          // Bipedal digitigrade stance: knee maintained in biological crouch (~ -0.38 rad)
+          // Yields smoothly during midstance to absorb weight
+          const stanceYield = Math.sin(Math.PI * s) * 0.16;
+          knee = -0.38 - stanceYield;
+          ankle = 0.18 - girdle * 0.55 + stanceYield * 0.35;
+        } else if (role === 'hexapod_hind') {
+          // Hexapod rear leg: extends backward in rest pose; pushes against ground with natural forward/downward compliance
+          knee = THREE.MathUtils.clamp(groundFlex * 0.30, 0.0, 0.25);
+          ankle = THREE.MathUtils.clamp(-girdle * 0.40, -0.25, 0.25);
+        } else if (role === 'mid') {
           // Hexapod middle limb: moderate stance flexion
-          knee = THREE.MathUtils.clamp(-groundFlex * 0.55, -0.40, 0.0);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.65 + knee * 0.40), -0.40, 0.40);
+          knee = THREE.MathUtils.clamp(-groundFlex * 0.35, -0.25, 0.0);
+          ankle = THREE.MathUtils.clamp(-(girdle * 0.50 + knee * 0.30), -0.30, 0.30);
+        } else if (role === 'fore') {
+          // Forelimb Elbow: bends forward (+rotation) to absorb weight smoothly
+          knee = THREE.MathUtils.clamp(groundFlex * 0.45, 0.0, 0.35);
+          ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.50), -0.45, 0.45);
         } else {
-          // Hindlimb Knee: bends backward (-rotation) naturally under load bearing
+          // Quadruped Hindlimb Knee: bends backward (-rotation) naturally under load bearing
           knee = THREE.MathUtils.clamp(-groundFlex * 0.65, -0.45, 0.0);
-          // Hock / Ankle: counters hip & knee so pes rests flat on the ground
           ankle = THREE.MathUtils.clamp(-(girdle * 0.75 + knee * 0.60), -0.50, 0.50);
         }
 
         return { girdle, knee, ankle, isStance: true };
       } else {
+        // ==========================================
         // SWING PHASE: In midair, leg lifts off ground and swings from BACKWARD to FORWARD.
+        // ==========================================
         const u = (tau - stanceDuty) / (1.0 - stanceDuty); // [0, 1)
         const girdle = legSwing * Math.cos(Math.PI * u);
-        // Athletic midair clearance
-        const lift = Math.sin(Math.PI * u) * footLift * 1.6;
+        const lift = Math.sin(Math.PI * u) * footLift;
 
         let knee = 0;
         let ankle = 0;
 
-        if (isForelimb) {
-          // Forelimb Elbow: flexes FORWARD (+rotation) to lift the forearm under the chest.
-          // Strictly clamped so it never bends backwards!
-          knee = THREE.MathUtils.clamp(lift * 1.35, 0.0, 0.75);
-          // Wrist: trails naturally as the leg swings forward, then prepares for touchdown
-          ankle = THREE.MathUtils.clamp(-girdle * 0.55 - Math.sin(Math.PI * u) * 0.25, -0.55, 0.40);
-        } else if (isMiddleLimb) {
+        if (role === 'biped') {
+          // Bipedal swing: knee remains flexed throughout the swing, folding the lower leg under the body
+          // and smoothly opening back to -0.38 for touchdown. NEVER extends straight (eliminates kicking!)
+          const liftArc = Math.sin(Math.PI * u);
+          knee = -0.38 - liftArc * 0.35;
+          const ankleTrail = u < 0.35 ? Math.sin(Math.PI * (u / 0.35)) * 0.16 : 0;
+          const toeLift = Math.sin(Math.PI * u) * 0.20;
+          ankle = 0.18 - girdle * 0.50 - ankleTrail + toeLift;
+        } else if (role === 'hexapod_hind') {
+          // Hexapod rear leg: lifts smoothly forward and upward without backward hyperextension
+          knee = THREE.MathUtils.clamp(lift * 1.1, 0.0, 0.35);
+          ankle = THREE.MathUtils.clamp(-girdle * 0.35, -0.22, 0.22);
+        } else if (role === 'mid') {
           // Hexapod middle limb swing
-          knee = THREE.MathUtils.clamp(-lift * 1.15, -0.55, 0.0);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.60 + Math.sin(Math.PI * u) * 0.25, -0.45, 0.45);
+          knee = THREE.MathUtils.clamp(-lift * 1.0, -0.35, 0.0);
+          ankle = THREE.MathUtils.clamp(-girdle * 0.45 + lift * 0.20, -0.30, 0.30);
+        } else if (role === 'fore') {
+          // Forelimb Elbow: flexes forward (+rotation) to lift forearm under chest
+          knee = THREE.MathUtils.clamp(lift * 1.6, 0.0, 0.65);
+          ankle = THREE.MathUtils.clamp(-girdle * 0.50 - Math.sin(Math.PI * u) * 0.22, -0.50, 0.35);
         } else {
-          // Hindlimb Knee (Stifle): flexes BACKWARD (-rotation) as foot picks up,
+          // Quadruped Hindlimb Knee (Stifle): flexes backward as foot picks up,
           // then smoothly extends forward as the leg reaches forward to plant.
           const tuckPhase = Math.sin(Math.PI * Math.pow(u, 0.85));
-          knee = THREE.MathUtils.clamp(-tuckPhase * footLift * 2.2, -0.85, 0.0);
-          // Hock / Ankle: flexes during pickup for clean ground clearance, then aligns to plant flat
+          knee = THREE.MathUtils.clamp(-tuckPhase * footLift * 2.0, -0.75, 0.0);
           const baseAnkle = -girdle * 0.65;
-          const toeClearance = Math.sin(Math.PI * u) * 0.32;
-          ankle = THREE.MathUtils.clamp(baseAnkle + toeClearance, -0.55, 0.55);
+          const toeClearance = Math.sin(Math.PI * u) * 0.30;
+          ankle = THREE.MathUtils.clamp(baseAnkle + toeClearance, -0.50, 0.50);
         }
 
         return { girdle, knee, ankle, isStance: false };
@@ -287,13 +335,25 @@ export class ProceduralAnimationEngine {
     for (let p = 0; p < limbPairsCount; p++) {
       const isFore = p === 0 && limbPairsCount > 1;
 
-      // Authentic biological phase calculation:
-      // In quadruped locomotion, the BACK legs ALWAYS pick up and initiate the stride cycle first,
-      // propelling the body forward, followed sequentially by the ipsilateral and contralateral limbs.
+      let role: LimbRole = 'hind';
+      if (isBiped) {
+        role = 'biped';
+      } else if (isHexapod) {
+        if (p === 0) role = 'fore';
+        else if (p === 1) role = 'mid';
+        else role = 'hexapod_hind';
+      } else {
+        role = isFore ? 'fore' : 'hind';
+      }
+
       let leftPhase = phase;
       let rightPhase = phase + Math.PI;
 
-      if (limbPairsCount === 2) {
+      if (isBiped) {
+        // Biped: Clean alternating strides with lateral weight transfer
+        leftPhase = phase;
+        rightPhase = phase + Math.PI;
+      } else if (limbPairsCount === 2) {
         if (gait === 'walk' || gait === 'prowl') {
           // Authentic Lateral Sequence Walk:
           // 1. Left Hind (phase) picks up first -> moves forward
@@ -308,8 +368,7 @@ export class ProceduralAnimationEngine {
             rightPhase = phase - Math.PI;
           }
         } else if (gait === 'gallop') {
-          // High-speed Rotary Gallop:
-          // Back legs kick off and lead the forward bound, then forelimbs reach out and land
+          // Rotary Gallop: Back legs kick off first, then forelegs reach out
           if (isFore) {
             leftPhase = phase - 0.80 * Math.PI;
             rightPhase = phase - 0.60 * Math.PI;
@@ -318,7 +377,7 @@ export class ProceduralAnimationEngine {
             rightPhase = phase + 0.20 * Math.PI;
           }
         } else if (gait === 'trot') {
-          // Trot: Diagonal pairs move together, with hind limb leading touch-off
+          // Trot: Diagonal pairs move together, hind leads
           if (isFore) {
             leftPhase = phase + Math.PI - 0.08 * Math.PI;
             rightPhase = phase - 0.08 * Math.PI;
@@ -328,11 +387,16 @@ export class ProceduralAnimationEngine {
           }
         }
       } else if (isHexapod) {
-        // Hexapod metachronal forward wave:
-        // Rear legs (p=2) pick up first -> middle (p=1) -> front (p=0)
-        const waveOffset = (2 - p) * (0.65 * Math.PI);
-        leftPhase = phase + waveOffset;
-        rightPhase = phase + waveOffset + Math.PI;
+        // Authentic Alternating Tripod Gait for 6-legged organisms:
+        // Tripod 1: Left Fore (p=0), Right Mid (p=1), Left Rear (p=2) move together!
+        // Tripod 2: Right Fore (p=0), Left Mid (p=1), Right Rear (p=2) move together!
+        if (p === 1) {
+          leftPhase = phase + Math.PI;
+          rightPhase = phase;
+        } else {
+          leftPhase = phase;
+          rightPhase = phase + Math.PI;
+        }
       }
 
       // Bone References
@@ -344,9 +408,8 @@ export class ProceduralAnimationEngine {
       const rAnkle = boneMap.get(isFore ? `R_Wrist_${p}` : `R_Ankle_${p}`);
 
       // Evaluate Continuous Jitter-Free Kinematics
-      const isMiddle = isHexapod && p === 1;
-      const lKin = evaluateLimbKinematics(leftPhase, isFore, isMiddle);
-      const rKin = evaluateLimbKinematics(rightPhase, isFore, isMiddle);
+      const lKin = evaluateLimbKinematics(leftPhase, role);
+      const rKin = evaluateLimbKinematics(rightPhase, role);
 
       // Apply to Left Limb
       if (lGirdle) lGirdle.rotation.x = lKin.girdle;
