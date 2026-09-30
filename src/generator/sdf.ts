@@ -298,16 +298,19 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
     let footForwardOffset = 0;
 
     if (limbPairsCount === 3) {
-      // Hexapod: Front legs angle forward, middle legs angle lateral, rear legs angle backward
+      // Hexapod: All 3 pairs follow consistent biological orientation with forward-pointing feet
       if (pair === 0) {
-        kneeZOffset = 0.16 * limbScale * scale;
-        footForwardOffset = 0.18 * scale;
+        // Forelegs: elbow angles slightly backward, wrist and foot reach forward
+        kneeZOffset = -0.06 * limbScale * scale;
+        footForwardOffset = (dna.footPosture === 'plantigrade' ? 0.14 : 0.08) * scale;
       } else if (pair === 1) {
-        kneeZOffset = 0.0;
-        footForwardOffset = 0.0;
+        // Midlegs: lateral stance, knee angles slightly forward, foot plants forward
+        kneeZOffset = 0.06 * limbScale * scale;
+        footForwardOffset = (dna.footPosture === 'plantigrade' ? 0.10 : 0.06) * scale;
       } else {
-        kneeZOffset = -0.18 * limbScale * scale;
-        footForwardOffset = -0.18 * scale;
+        // Rear legs: knee angles forward, ankle angles backward, foot plants forward
+        kneeZOffset = 0.10 * limbScale * scale;
+        footForwardOffset = (dna.footPosture === 'plantigrade' ? 0.10 : 0.06) * scale;
       }
     } else if (isBipedStance) {
       // Bipedal theropod: feet planted stably under the Whole-Body Center of Mass (CoM)

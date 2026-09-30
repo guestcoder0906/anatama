@@ -237,7 +237,7 @@ export class ProceduralAnimationEngine {
     else if (gait === 'gallop') stanceDuty = 0.42;
     if (isBiped && (gait === 'walk' || gait === 'prowl')) stanceDuty = 0.60;
 
-    type LimbRole = 'fore' | 'mid' | 'hind' | 'hexapod_hind' | 'biped';
+    type LimbRole = 'fore' | 'mid' | 'hind' | 'biped';
 
     const evaluateLimbKinematics = (phaseVal: number, role: LimbRole) => {
       if (stanceDuty >= 0.999) {
@@ -268,22 +268,18 @@ export class ProceduralAnimationEngine {
           const stanceYield = Math.sin(Math.PI * s) * 0.16;
           knee = -0.38 - stanceYield;
           ankle = 0.18 - girdle * 0.55 + stanceYield * 0.35;
-        } else if (role === 'hexapod_hind') {
-          // Hexapod rear leg: extends backward in rest pose; pushes against ground with natural forward/downward compliance
-          knee = THREE.MathUtils.clamp(groundFlex * 0.30, 0.0, 0.25);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.40, -0.25, 0.25);
         } else if (role === 'mid') {
           // Hexapod middle limb: moderate stance flexion
-          knee = THREE.MathUtils.clamp(-groundFlex * 0.35, -0.25, 0.0);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.50 + knee * 0.30), -0.30, 0.30);
+          knee = THREE.MathUtils.clamp(-groundFlex * 0.40, -0.30, 0.0);
+          ankle = THREE.MathUtils.clamp(-(girdle * 0.55 + knee * 0.35), -0.35, 0.35);
         } else if (role === 'fore') {
           // Forelimb Elbow: bends forward (+rotation) to absorb weight smoothly
           knee = THREE.MathUtils.clamp(groundFlex * 0.45, 0.0, 0.35);
           ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.50), -0.45, 0.45);
         } else {
-          // Quadruped Hindlimb Knee: bends backward (-rotation) naturally under load bearing
-          knee = THREE.MathUtils.clamp(-groundFlex * 0.65, -0.45, 0.0);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.75 + knee * 0.60), -0.50, 0.50);
+          // Hindlimb Knee: bends backward (-rotation) naturally under load bearing
+          knee = THREE.MathUtils.clamp(-groundFlex * 0.60, -0.45, 0.0);
+          ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.55), -0.45, 0.45);
         }
 
         return { girdle, knee, ankle, isStance: true };
@@ -306,26 +302,22 @@ export class ProceduralAnimationEngine {
           const ankleTrail = u < 0.35 ? Math.sin(Math.PI * (u / 0.35)) * 0.16 : 0;
           const toeLift = Math.sin(Math.PI * u) * 0.20;
           ankle = 0.18 - girdle * 0.50 - ankleTrail + toeLift;
-        } else if (role === 'hexapod_hind') {
-          // Hexapod rear leg: lifts smoothly forward and upward without backward hyperextension
-          knee = THREE.MathUtils.clamp(lift * 1.1, 0.0, 0.35);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.35, -0.22, 0.22);
         } else if (role === 'mid') {
           // Hexapod middle limb swing
-          knee = THREE.MathUtils.clamp(-lift * 1.0, -0.35, 0.0);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.45 + lift * 0.20, -0.30, 0.30);
+          knee = THREE.MathUtils.clamp(-lift * 1.1, -0.45, 0.0);
+          ankle = THREE.MathUtils.clamp(-girdle * 0.50 + Math.sin(Math.PI * u) * 0.22, -0.35, 0.35);
         } else if (role === 'fore') {
           // Forelimb Elbow: flexes forward (+rotation) to lift forearm under chest
           knee = THREE.MathUtils.clamp(lift * 1.6, 0.0, 0.65);
           ankle = THREE.MathUtils.clamp(-girdle * 0.50 - Math.sin(Math.PI * u) * 0.22, -0.50, 0.35);
         } else {
-          // Quadruped Hindlimb Knee (Stifle): flexes backward as foot picks up,
+          // Hindlimb Knee (Stifle): flexes backward as foot picks up,
           // then smoothly extends forward as the leg reaches forward to plant.
           const tuckPhase = Math.sin(Math.PI * Math.pow(u, 0.85));
           knee = THREE.MathUtils.clamp(-tuckPhase * footLift * 2.0, -0.75, 0.0);
           const baseAnkle = -girdle * 0.65;
           const toeClearance = Math.sin(Math.PI * u) * 0.30;
-          ankle = THREE.MathUtils.clamp(baseAnkle + toeClearance, -0.50, 0.50);
+          ankle = THREE.MathUtils.clamp(baseAnkle + toeClearance, -0.45, 0.45);
         }
 
         return { girdle, knee, ankle, isStance: false };
@@ -341,7 +333,7 @@ export class ProceduralAnimationEngine {
       } else if (isHexapod) {
         if (p === 0) role = 'fore';
         else if (p === 1) role = 'mid';
-        else role = 'hexapod_hind';
+        else role = 'hind';
       } else {
         role = isFore ? 'fore' : 'hind';
       }
