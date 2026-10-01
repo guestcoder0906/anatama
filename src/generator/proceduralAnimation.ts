@@ -241,10 +241,7 @@ export class ProceduralAnimationEngine {
 
     const evaluateLimbKinematics = (phaseVal: number, role: LimbRole) => {
       if (stanceDuty >= 0.999) {
-        // Idle / Roar: 100% grounded stance carrying weight
-        if (role === 'biped') {
-          return { girdle: 0.0, knee: -0.38, ankle: 0.20, isStance: true };
-        }
+        // Idle / Roar: 100% grounded stance carrying weight in rest pose
         return { girdle: 0.0, knee: 0.0, ankle: 0.0, isStance: true };
       }
 
@@ -259,28 +256,10 @@ export class ProceduralAnimationEngine {
         const girdle = -legSwing * Math.cos(Math.PI * s);
         const groundFlex = Math.sin(Math.PI * s) * ((1.0 - Math.cos(legSwing)) * 1.8 + 0.04);
 
-        let knee = 0;
-        let ankle = 0;
-
-        if (role === 'biped') {
-          // Bipedal digitigrade stance: knee maintained in biological crouch (~ -0.38 rad)
-          // Yields smoothly during midstance to absorb weight
-          const stanceYield = Math.sin(Math.PI * s) * 0.16;
-          knee = -0.38 - stanceYield;
-          ankle = 0.18 - girdle * 0.55 + stanceYield * 0.35;
-        } else if (role === 'mid') {
-          // Hexapod middle limb: moderate stance flexion
-          knee = THREE.MathUtils.clamp(-groundFlex * 0.40, -0.30, 0.0);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.55 + knee * 0.35), -0.35, 0.35);
-        } else if (role === 'fore') {
-          // Forelimb Elbow: bends forward (+rotation) to absorb weight smoothly
-          knee = THREE.MathUtils.clamp(groundFlex * 0.45, 0.0, 0.35);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.50), -0.45, 0.45);
-        } else {
-          // Hindlimb Knee: bends backward (-rotation) naturally under load bearing
-          knee = THREE.MathUtils.clamp(-groundFlex * 0.60, -0.45, 0.0);
-          ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.55), -0.45, 0.45);
-        }
+        // Smooth compliant weight-bearing: knee flexes forward smoothly to absorb load,
+        // matching the front legs so back legs and bipeds step gracefully without kicking
+        const knee = THREE.MathUtils.clamp(groundFlex * 0.45, 0.0, 0.35);
+        const ankle = THREE.MathUtils.clamp(-(girdle * 0.70 + knee * 0.50), -0.45, 0.45);
 
         return { girdle, knee, ankle, isStance: true };
       } else {
@@ -291,34 +270,10 @@ export class ProceduralAnimationEngine {
         const girdle = legSwing * Math.cos(Math.PI * u);
         const lift = Math.sin(Math.PI * u) * footLift;
 
-        let knee = 0;
-        let ankle = 0;
-
-        if (role === 'biped') {
-          // Bipedal swing: knee remains flexed throughout the swing, folding the lower leg under the body
-          // and smoothly opening back to -0.38 for touchdown. NEVER extends straight (eliminates kicking!)
-          const liftArc = Math.sin(Math.PI * u);
-          knee = -0.38 - liftArc * 0.35;
-          const ankleTrail = u < 0.35 ? Math.sin(Math.PI * (u / 0.35)) * 0.16 : 0;
-          const toeLift = Math.sin(Math.PI * u) * 0.20;
-          ankle = 0.18 - girdle * 0.50 - ankleTrail + toeLift;
-        } else if (role === 'mid') {
-          // Hexapod middle limb swing
-          knee = THREE.MathUtils.clamp(-lift * 1.1, -0.45, 0.0);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.50 + Math.sin(Math.PI * u) * 0.22, -0.35, 0.35);
-        } else if (role === 'fore') {
-          // Forelimb Elbow: flexes forward (+rotation) to lift forearm under chest
-          knee = THREE.MathUtils.clamp(lift * 1.6, 0.0, 0.65);
-          ankle = THREE.MathUtils.clamp(-girdle * 0.50 - Math.sin(Math.PI * u) * 0.22, -0.50, 0.35);
-        } else {
-          // Hindlimb Knee (Stifle): flexes backward as foot picks up,
-          // then smoothly extends forward as the leg reaches forward to plant.
-          const tuckPhase = Math.sin(Math.PI * Math.pow(u, 0.85));
-          knee = THREE.MathUtils.clamp(-tuckPhase * footLift * 2.0, -0.75, 0.0);
-          const baseAnkle = -girdle * 0.65;
-          const toeClearance = Math.sin(Math.PI * u) * 0.30;
-          ankle = THREE.MathUtils.clamp(baseAnkle + toeClearance, -0.45, 0.45);
-        }
+        // Smooth stepping swing: knee flexes forward (+rotation) to lift the limb and step forward cleanly,
+        // identical to front leg stepping motion, eliminating backwards kicking
+        const knee = THREE.MathUtils.clamp(lift * 1.6, 0.0, 0.65);
+        const ankle = THREE.MathUtils.clamp(-girdle * 0.50 - Math.sin(Math.PI * u) * 0.22, -0.50, 0.35);
 
         return { girdle, knee, ankle, isStance: false };
       }
