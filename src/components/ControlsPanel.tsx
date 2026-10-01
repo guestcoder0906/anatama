@@ -312,8 +312,17 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   <button
                     key={st}
                     onClick={() => {
-                      update('stance', st);
-                      update('limbPairs', st === 'avian_theropod' || st === 'bipedal' ? 1 : st === 'hexapodal' ? 3 : 2);
+                      const isBiped = st === 'avian_theropod' || st === 'bipedal';
+                      const isHex = st === 'hexapodal';
+                      onUpdateDNA((prev) => ({
+                        ...prev,
+                        stance: st,
+                        limbPairs: isBiped ? 1 : isHex ? 3 : 2,
+                        tailLength: isBiped ? Math.max(prev.tailLength, 2.2) : prev.tailLength,
+                        tailThickness: isBiped ? Math.max(prev.tailThickness, 0.24) : prev.tailThickness,
+                        forelimbScale: isBiped ? Math.min(prev.forelimbScale, 0.50) : (prev.forelimbScale < 0.7 ? 0.95 : prev.forelimbScale),
+                        pelvisWidth: isBiped ? Math.max(prev.pelvisWidth, 0.64) : prev.pelvisWidth
+                      }));
                     }}
                     className={`py-1.5 px-2 rounded text-[11px] font-medium capitalize transition-colors ${
                       dna.stance === st

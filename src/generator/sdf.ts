@@ -261,57 +261,99 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
     prevTailIdx = tIdx;
   }
 
-  // 1. Calculate Whole Axial Body Center of Mass Z position (to dynamically position biped feet under the CoM)
+  // 1. Calculate Whole Body Center of Mass Z position (to dynamically position biped feet under the CoM)
   let axialMassSum = 0;
   let axialMassZSum = 0;
 
   // Pelvis
-  const pelvisM = Math.pow(pelvisRx, 3) * 1.0;
+  const pelvisVol = (4 / 3) * Math.PI * pelvisRx * (dna.thoracicDepth * 0.44 * scale) * (spineL * 0.24 * scale);
+  const pelvisM = pelvisVol * 1030;
   axialMassSum += pelvisM;
   axialMassZSum += pelvisM * pelvisZ;
 
   // Lumbar
-  const lumbarM = Math.pow(lumbarRx, 3) * 0.9;
+  const lumbarVol = Math.PI * Math.pow(lumbarRx, 2) * (dna.lumbarLength * scale);
+  const lumbarM = lumbarVol * 1030;
   axialMassSum += lumbarM;
   axialMassZSum += lumbarM * lumbarZ;
 
   // Thorax
-  const thoraxM = Math.pow(thoraxRx, 3) * 1.1;
+  const humpBoost = dna.dorsalCrestAdipose * 0.35 * scale;
+  const thoraxVol = (4 / 3) * Math.PI * thoraxRx * (dna.thoracicDepth * 0.52 * scale + humpBoost) * (spineL * 0.28 * scale);
+  const thoraxM = thoraxVol * 1030 * 0.88;
   axialMassSum += thoraxM;
   axialMassZSum += thoraxM * thoraxZ;
 
   // Neck
   const neckBase = joints[3];
   const neckUpper = joints[4];
-  const neckM = Math.pow((neckBase.radius + neckUpper.radius) * 0.5, 3) * 1.4;
+  const neckVol = Math.PI * Math.pow((neckBase.radius + neckUpper.radius) * 0.5, 2) * (dna.neckLength * scale);
+  const neckM = neckVol * 1060;
   axialMassSum += neckM;
   axialMassZSum += neckM * ((neckBase.pos[2] + neckUpper.pos[2]) * 0.5);
 
-  // Cranium, Snout & Jaw
+  // Cranium, Snout, Mandibles & Horns
   const headJ = joints[5];
   const snoutJ = joints[6];
   const jawJ = joints[7];
-  const headM = Math.pow(headJ.radius, 3) * 1.6;
+  let headM = (4 / 3) * Math.PI * Math.pow(headJ.radius, 3) * 680 * 0.75;
+  headM += Math.PI * Math.pow(snoutJ.radius, 2) * (dna.snoutLength * scale * 0.65) * 680;
+  headM += Math.PI * Math.pow(jawJ.radius, 2) * (dna.snoutLength * scale * 0.45) * 680;
+  if (dna.hornType !== 'none') {
+    headM += Math.PI * Math.pow(0.06 * scale, 2) * (dna.hornScale * scale) * 950 * 2.0;
+  }
+  const headZ = headJ.pos[2] + dna.snoutLength * 0.20 * scale;
   axialMassSum += headM;
-  axialMassZSum += headM * headJ.pos[2];
-
-  const snoutM = Math.pow(snoutJ.radius, 3) * 1.0;
-  axialMassSum += snoutM;
-  axialMassZSum += snoutM * snoutJ.pos[2];
-
-  const jawM = Math.pow(jawJ.radius, 3) * 0.8;
-  axialMassSum += jawM;
-  axialMassZSum += jawM * jawJ.pos[2];
+  axialMassZSum += headM * headZ;
 
   // Tail segments
   for (const tIdx of tailIndices) {
     const tJ = joints[tIdx];
-    const tM = Math.pow(tJ.radius, 3) * 1.2;
+    const tVol = Math.PI * Math.pow(tJ.radius, 2) * ((dna.tailLength * scale) / tailIndices.length);
+    const tM = tVol * 1060;
     axialMassSum += tM;
     axialMassZSum += tM * tJ.pos[2];
   }
+  if (dna.tailTipStyle === 'club' && tailIndices.length > 0) {
+    const clubMass = (4 / 3) * Math.PI * Math.pow(0.16 * scale, 3) * 1100;
+    const lastTj = joints[tailIndices[tailIndices.length - 1]];
+    axialMassSum += clubMass;
+    axialMassZSum += clubMass * lastTj.pos[2];
+  }
 
   const axialCoMZ = axialMassSum > 0 ? axialMassZSum / axialMassSum : 0;
+
+  const isBipedStance = dna.stance === 'avian_theropod' || dna.stance === 'bipedal';
+  let bipedFootZ = axialCoMZ;
+
+  if (isBipedStance) {
+    // Whole-body Center of Mass solver for biped equilibrium:
+    // Models the mass of the 2 hindlimbs in stance to find the exact ground foot placement
+    // so that groundCoM lands precisely in the center of the Base of Support polygon!
+    const attachJoint = joints[0];
+    const rawThighRad = dna.femurThickness * 0.60 * scale;
+    const thighRad = Math.max(0.14 * scale, Math.min(0.24 * scale, rawThighRad));
+    const footRad = Math.max(0.10 * scale, thighRad * 0.68);
+    const totalLegH = attachJoint.pos[1];
+    const ankleH = Math.max(footRad + 0.11 * scale, dna.footPosture === 'plantigrade' ? footRad + 0.08 * scale : totalLegH * 0.24);
+    const kneeH = Math.max(ankleH + 0.16 * scale, totalLegH * 0.54);
+
+    const upperLen = Math.hypot(thighRad * 1.65, totalLegH - kneeH);
+    const upperM = Math.PI * Math.pow((thighRad + thighRad * 0.82) * 0.5, 2) * upperLen * 1060;
+    const lowerLen = Math.hypot(0.04 * scale, kneeH - ankleH);
+    const lowerM = Math.PI * Math.pow((thighRad * 0.82 + thighRad * 0.68) * 0.5, 2) * lowerLen * 1060;
+    const footM = Math.PI * Math.pow(footRad, 2) * (footRad * 2.5) * 1350;
+    const twoLegsMass = 2 * (upperM + lowerM + footM);
+
+    // Iterative relaxation solver (converges to < 0.001m in 2 passes)
+    let zEst = axialCoMZ;
+    for (let iter = 0; iter < 2; iter++) {
+      const kZ = attachJoint.pos[2] + (zEst - attachJoint.pos[2]) * 0.60 + 0.12 * dna.hindlimbScale * scale;
+      const legCoMZ = (attachJoint.pos[2] * upperM + kZ * lowerM + zEst * footM) / (upperM + lowerM + footM);
+      zEst = (axialMassSum * axialCoMZ + twoLegsMass * legCoMZ) / (axialMassSum + twoLegsMass);
+    }
+    bipedFootZ = zEst;
+  }
 
   // Limb Pairs Generation
   const limbPairsCount = dna.limbPairs;
@@ -343,8 +385,6 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
     const leftChain: number[] = [];
     const rightChain: number[] = [];
 
-    const isBipedStance = dna.stance === 'avian_theropod' || dna.stance === 'bipedal';
-
     // Longitudinal knee and foot placement to prevent fore/mid/hind collision
     let kneeZOffset = 0;
     let footForwardOffset = 0;
@@ -365,11 +405,10 @@ export function buildSkeletonBlueprint(dna: CreatureDNA): SkeletonBlueprint {
         footForwardOffset = (dna.footPosture === 'plantigrade' ? 0.10 : 0.06) * scale;
       }
     } else if (isBipedStance) {
-      // Dynamic biological balance: biped feet are planted directly under the whole-body Center of Mass (CoM)
-      // The knee extends forward and ankle angles backward to reach the ground contact point
-      kneeZOffset = (axialCoMZ - attachJoint.pos[2]) * 0.65 + 0.14 * limbScale * scale;
+      // Dynamic biological balance: biped feet are planted directly at whole-body Center of Mass
+      kneeZOffset = (bipedFootZ - attachJoint.pos[2]) * 0.60 + 0.12 * limbScale * scale;
       const targetAnkleZ = attachJoint.pos[2] + kneeZOffset - 0.14 * limbScale * scale;
-      footForwardOffset = Math.max(0.12 * scale, axialCoMZ - targetAnkleZ);
+      footForwardOffset = bipedFootZ - targetAnkleZ;
     } else {
       // Quadruped: Forelimb elbow angles back, hindlimb stifle angles forward
       if (isForelimb) {

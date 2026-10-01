@@ -99,8 +99,21 @@ function pointToPolygonDistance(pt: [number, number], poly: [number, number][]):
     const xi = poly[i][0], zi = poly[i][1];
     const xj = poly[j][0], zj = poly[j][1];
     const intersect = ((zi > pt[1]) !== (zj > pt[1])) &&
-      (pt[0] < ((xj - xi) * (pt[1] - zi)) / (zj - zi) + xi);
+      (pt[0] < ((xj - xi) * (pt[1] - zi)) / (zj - zi + 1e-12) + xi);
     if (intersect) inside = !inside;
+  }
+
+  // Robust fallback for convex polygon (Monotone Chain convex hull):
+  // point is inside if strictly on the same side of all directed perimeter edges
+  if (!inside && poly.length >= 3) {
+    let allPos = true;
+    let allNeg = true;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const cross = (poly[i][0] - poly[j][0]) * (pt[1] - poly[j][1]) - (poly[i][1] - poly[j][1]) * (pt[0] - poly[j][0]);
+      if (cross < -1e-6) allPos = false;
+      if (cross > 1e-6) allNeg = false;
+    }
+    if (allPos || allNeg) inside = true;
   }
 
   // Calculate minimum Euclidean distance to polygon edges
